@@ -1,0 +1,36 @@
+name: release
+
+# Conventional Commits を解析し、push 時にタグ(vX.Y.Z)+ GitHub Release を直接発行する。
+# (リリースPRを介さず Release を直接作れる semantic-release を採用。)
+# Action 消費者は @v1 で参照するため、リリース成功時に major タグ(v1)も貼り直す。
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write # タグ/Release 作成・major タグ push
+  issues: write # semantic-release のリリースコメント
+  pull-requests: write # 同上
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # semantic-release は全履歴/タグが要る
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+
+      - name: semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

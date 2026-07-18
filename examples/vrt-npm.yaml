@@ -1,0 +1,36 @@
+# chromagic ワークフロー例（npm / Node.js）。bun を使わないプロジェクト向け。
+name: VRT
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: vrt-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vrt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+
+      - run: npm run build-storybook # → storybook-static/
+
+      - uses: sgash708/chromagic@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          storybook-static-path: storybook-static

@@ -1,0 +1,40 @@
+# chromagic ワークフロー例（bun）。
+# .github/workflows/vrt.yaml としてコピーして使う。
+name: VRT
+
+on:
+  pull_request:
+  # main への push(=PR マージ)でベースライン(vrt-baseline)を更新する。必須。
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# chromagic が PR コメント投稿と baseline/report ブランチ push に使う。
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: vrt-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vrt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Build Storybook
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: bun run build-storybook # → storybook-static/
+
+      - uses: sgash708/chromagic@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          storybook-static-path: storybook-static

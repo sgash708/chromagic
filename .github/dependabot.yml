@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Action 本体の npm 依存(storycap / pixelmatch / pngjs 等)。
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "sgash708"
+
+  # composite action の uses(setup-chrome 等)と examples/ ワークフローの Action 追従。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "sgash708"

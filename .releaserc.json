@@ -1,0 +1,15 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/github",
+    [
+      "@semantic-release/exec",
+      {
+        "successCmd": "MAJOR=$(echo ${nextRelease.version} | cut -d. -f1) && git tag -f \"v$MAJOR\" \"${nextRelease.gitTag}\" && git push -f origin \"v$MAJOR\""
+      }
+    ]
+  ]
+}

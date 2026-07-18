@@ -1,0 +1,103 @@
+name: "Storybook VRT (green/red diff)"
+description: "Self-hosted Chromatic-like VRT for Storybook: storycap capture + pixelmatch 緑/赤 diff + PR inline comment."
+author: "sgash708"
+branding:
+  icon: "eye"
+  color: "green"
+
+inputs:
+  github-token:
+    description: "GITHUB_TOKEN。PR コメント投稿と baseline/report ブランチ push に使う。"
+    required: true
+  storybook-static-path:
+    description: "ビルド済み Storybook 静的ディレクトリ。"
+    required: false
+    default: "storybook-static"
+  viewport:
+    description: "撮影ビューポート WxH。"
+    required: false
+    default: "390x844"
+  port:
+    description: "storybook-static を配信するローカルポート。"
+    required: false
+    default: "6006"
+  matching-threshold:
+    description: "pixelmatch の matching threshold(0-1)。小さいほど敏感。"
+    required: false
+    default: "0.05"
+  threshold-pixel:
+    description: "この変化ピクセル数を超えたら story を『変更』とみなす。"
+    required: false
+    default: "50"
+  baseline-branch:
+    description: "ベースライン画像を保持するブランチ(デフォルトブランチへの push 時に更新)。"
+    required: false
+    default: "vrt-baseline"
+  report-branch:
+    description: "PR コメント用に actual/expected/diff をホストするブランチ。"
+    required: false
+    default: "vrt-reports"
+  install-fonts:
+    description: "Noto CJK フォントを入れる(Linux)。日本語を豆腐にしないため。"
+    required: false
+    default: "true"
+
+outputs:
+  changed:
+    description: "差分が出た story 数。"
+    value: ${{ steps.chromagic.outputs.changed }}
+  new:
+    description: "新規 story 数(baseline に無い)。"
+    value: ${{ steps.chromagic.outputs.new }}
+  deleted:
+    description: "削除 story 数(baseline にあり現行に無い)。"
+    value: ${{ steps.chromagic.outputs.deleted }}
+  pass:
+    description: "一致した story 数。"
+    value: ${{ steps.chromagic.outputs.pass }}
+  total:
+    description: "撮影した story 総数。"
+    value: ${{ steps.chromagic.outputs.total }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Japanese fonts (Noto CJK)
+      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
+    - name: Setup Chrome for Testing
+      id: chrome
+      uses: browser-actions/setup-chrome@v2
+      with:
+        install-dependencies: true
+
+    - name: Install action dependencies
+      shell: bash
+      # consumer 側は実行に要る依存だけ(devDeps=semantic-release 等は入れない)。
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --omit=dev --no-audit --no-fund
+
+    - name: Capture stories (storycap)
+      shell: bash
+      run: |
+        "$GITHUB_ACTION_PATH/node_modules/.bin/storycap" \
+          --serverCmd "\"$GITHUB_ACTION_PATH/node_modules/.bin/http-server\" \"${{ inputs.storybook-static-path }}\" -p ${{ inputs.port }} -s" \
+          "http://localhost:${{ inputs.port }}" \
+          -o "$RUNNER_TEMP/vrt-current" \
+          --viewport "${{ inputs.viewport }}" \
+          --chromiumPath "${{ steps.chrome.outputs.chrome-path }}"
+
+    - name: Compare & report (pixelmatch 緑/赤)
+      id: chromagic
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VRT_CURRENT_DIR: ${{ runner.temp }}/vrt-current
+        VRT_BASELINE_BRANCH: ${{ inputs.baseline-branch }}
+        VRT_REPORT_BRANCH: ${{ inputs.report-branch }}
+        VRT_MATCHING_THRESHOLD: ${{ inputs.matching-threshold }}
+        VRT_THRESHOLD_PIXEL: ${{ inputs.threshold-pixel }}
+      run: node "$GITHUB_ACTION_PATH/src/main.mjs"

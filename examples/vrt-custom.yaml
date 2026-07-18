@@ -1,0 +1,32 @@
+# chromagic ワークフロー例（input をカスタムする場合）。
+# 感度・ビューポート・ブランチ名などを上書きしたいとき。
+name: VRT
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  vrt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build-storybook
+
+      - uses: sgash708/chromagic@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          storybook-static-path: dist/storybook # ビルド出力先が違う場合
+          viewport: "1280x800" # PC 幅で撮りたい場合
+          matching-threshold: "0.1" # 少し鈍感に(誤検知を減らす)
+          threshold-pixel: "100" # 100px 超の変化だけ「変更」扱い
+          baseline-branch: "chromagic-baseline" # ブランチ名を変える場合
+          install-fonts: "false" # 日本語不要なら撮影を少し速く

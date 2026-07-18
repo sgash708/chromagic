@@ -1,0 +1,24 @@
+{
+  "name": "chromagic",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted Chromatic-like VRT for Storybook (storycap + pixelmatch green/red diff + PR comment).",
+  "license": "MIT",
+  "author": "sgash708",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sgash708/chromagic.git"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.2",
+    "http-server": "^14.1.1",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "storycap": "^5.0.1"
+  },
+  "devDependencies": {
+    "@semantic-release/exec": "^7.1.0",
+    "semantic-release": "^25.0.5"
+  }
+}
