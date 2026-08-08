@@ -9,8 +9,11 @@ reg-actions の置き換え。最大の違いは **diff が緑/赤の2色**（�
 
 ## 出力イメージ
 
-PR を出すと、変更があった story ごとに **expected / actual / difference** が PR コメントに並びます。
-下は QtyStepper の「+」を緑にして間隔を広げた例（difference: 🔴=旧位置 / 🟢=新位置）:
+PR を出すと、変更があった story ごとに **expected / actual / difference** が PR コメントに並びます:
+
+![chromagic PR comment demo](docs/vrt-demo.gif)
+
+下はさらに拡大した例。QtyStepper の「+」を緑にして間隔を広げたケース（difference: 🔴=旧位置 / 🟢=新位置）:
 
 ![chromagic example](docs/example-diff.png)
 
