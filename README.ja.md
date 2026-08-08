@@ -66,7 +66,7 @@ jobs:
 |---|---|---|
 | `github-token` | （必須） | `GITHUB_TOKEN`。コメント投稿・ブランチ push に使用 |
 | `storybook-static-path` | `storybook-static` | ビルド済み Storybook 静的ディレクトリ |
-| `viewport` | `390x844` | 撮影ビューポート WxH |
+| `viewport` | `390x844` | 撮影ビューポート WxH。カンマ区切りで複数指定可(例: `390x844,1280x800`)。2つ以上指定した時だけファイル名に `_WxH` サフィックスが付くので、単一指定のままなら既存の baseline に影響しない |
 | `port` | `6006` | 静的配信のローカルポート |
 | `matching-threshold` | `0.05` | pixelmatch 感度(0-1、小さいほど敏感) |
 | `threshold-pixel` | `50` | この変化ピクセル数超で「変更」判定 |
