@@ -3,7 +3,7 @@
 // pixelmatch で比較し、変化を「赤=消えた / 緑=増えた」の2色 diff で可視化。
 // PR では actual/expected/diff を report ブランチへ push し、PR コメントにインライン表示する。
 // デフォルトブランチへの push 時は現行スクショを baseline ブランチへ保存(=次回比較の基準)。
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -28,14 +28,30 @@ const {
 
 const MATCH = Number.parseFloat(VRT_MATCHING_THRESHOLD || "0.05");
 const THRESH_PX = Number.parseInt(VRT_THRESHOLD_PIXEL || "50", 10);
-const AUTH_URL = `https://x-access-token:${TOKEN}@github.com/${REPO}.git`;
+
+// トークンはコマンドライン引数/URLに一切載せない（ps 一覧や例外メッセージへの漏洩防止）。
+// URL には username(固定文字列)のみを埋め込み、password は GIT_ASKPASS 経由で env から渡す。
+const REMOTE_URL = `https://x-access-token@github.com/${REPO}.git`;
+const askpassDir = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-auth-"));
+const ASKPASS_PATH = path.join(askpassDir, "askpass.sh");
+fs.writeFileSync(ASKPASS_PATH, `#!/bin/sh\nprintf '%s' "$CHROMAGIC_GIT_TOKEN"\n`);
+fs.chmodSync(ASKPASS_PATH, 0o700);
+const GIT_ENV = {
+  ...process.env,
+  GIT_ASKPASS: ASKPASS_PATH,
+  CHROMAGIC_GIT_TOKEN: TOKEN,
+  GIT_TERMINAL_PROMPT: "0",
+};
+
 const event = EVENT_PATH && fs.existsSync(EVENT_PATH)
   ? JSON.parse(fs.readFileSync(EVENT_PATH, "utf8"))
   : {};
 const DEFAULT_BRANCH = event.repository?.default_branch || "main";
 
-const sh = (cmd, opts = {}) =>
-  execSync(cmd, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", ...opts });
+// execFileSync + 配列引数でシェルを介さない（ブランチ名など input 由来の値でもコマンドインジェクションしない）。
+const sh = (file, args, opts = {}) =>
+  execFileSync(file, args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", env: GIT_ENV, ...opts });
+const git = (...args) => sh("git", args);
 const log = (m) => process.stdout.write(`${m}\n`);
 const COMMENT_MARKER = "<!-- chromagic-vrt -->";
 
@@ -60,7 +76,7 @@ function setOutputs(o) {
 function cloneBranch(branch) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-"));
   try {
-    sh(`git clone -q --depth 1 --branch ${branch} ${AUTH_URL} ${dir}`);
+    git("clone", "-q", "--depth", "1", "--branch", branch, REMOTE_URL, dir);
     return dir;
   } catch {
     return null;
@@ -76,16 +92,20 @@ function pushBranch(stageDir, branch, { force, baseDir } = {}) {
       copyFile(path.join(stageDir, f), path.join(baseDir, f));
     }
     work = baseDir;
-    sh(`git -C ${work} add -A`);
-    sh(`git -C ${work} -c user.email=vrt@chromagic -c user.name=chromagic commit -q -m "chromagic: report ${RUN_ID} [skip ci]" || true`);
-    sh(`git -C ${work} push -q ${AUTH_URL} HEAD:${branch}`);
+    git("-C", work, "add", "-A");
+    try {
+      git("-C", work, "-c", "user.email=vrt@chromagic", "-c", "user.name=chromagic", "commit", "-q", "-m", `chromagic: report ${RUN_ID} [skip ci]`);
+    } catch {
+      // 変更なしで commit するものが無いケースは無視。
+    }
+    git("-C", work, "push", "-q", REMOTE_URL, `HEAD:${branch}`);
     return;
   }
-  sh(`git -C ${work} init -q`);
-  sh(`git -C ${work} checkout -q -b ${branch}`);
-  sh(`git -C ${work} add -A`);
-  sh(`git -C ${work} -c user.email=vrt@chromagic -c user.name=chromagic commit -q -m "chromagic: ${branch} @ ${RUN_ID} [skip ci]"`);
-  sh(`git -C ${work} push -q --force ${AUTH_URL} HEAD:${branch}`);
+  git("-C", work, "init", "-q");
+  git("-C", work, "checkout", "-q", "-b", branch);
+  git("-C", work, "add", "-A");
+  git("-C", work, "-c", "user.email=vrt@chromagic", "-c", "user.name=chromagic", "commit", "-q", "-m", `chromagic: ${branch} @ ${RUN_ID} [skip ci]`);
+  git("-C", work, "push", "-q", "--force", REMOTE_URL, `HEAD:${branch}`);
 }
 
 async function apiFetch(method, urlPath, body) {
@@ -241,6 +261,10 @@ async function main() {
 }
 
 main().catch((e) => {
-  process.stderr.write(`chromagic failed: ${e.stack || e}\n`);
+  // 多層防御: GIT_ASKPASS 化でトークンはコマンドライン/URLに乗らない設計だが、
+  // 万一 stack/message にトークン文字列が紛れても出力前に必ずマスクする。
+  let msg = e.stack || String(e);
+  if (TOKEN) msg = msg.split(TOKEN).join("***");
+  process.stderr.write(`chromagic failed: ${msg}\n`);
   process.exit(1);
 });
