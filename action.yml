@@ -71,7 +71,7 @@ runs:
 
     - name: Setup Chrome for Testing
       id: chrome
-      uses: browser-actions/setup-chrome@v2
+      uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2
       with:
         install-dependencies: true
 
@@ -82,13 +82,19 @@ runs:
 
     - name: Capture stories (storycap)
       shell: bash
+      # inputs は run ブロックへ直接展開せず env 経由で渡す(shell/式インジェクション対策)。
+      env:
+        STORYBOOK_STATIC_PATH: ${{ inputs.storybook-static-path }}
+        VRT_PORT: ${{ inputs.port }}
+        VRT_VIEWPORT: ${{ inputs.viewport }}
+        CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       run: |
         "$GITHUB_ACTION_PATH/node_modules/.bin/storycap" \
-          --serverCmd "\"$GITHUB_ACTION_PATH/node_modules/.bin/http-server\" \"${{ inputs.storybook-static-path }}\" -p ${{ inputs.port }} -s" \
-          "http://localhost:${{ inputs.port }}" \
+          --serverCmd "\"$GITHUB_ACTION_PATH/node_modules/.bin/http-server\" \"$STORYBOOK_STATIC_PATH\" -p $VRT_PORT -s" \
+          "http://localhost:$VRT_PORT" \
           -o "$RUNNER_TEMP/vrt-current" \
-          --viewport "${{ inputs.viewport }}" \
-          --chromiumPath "${{ steps.chrome.outputs.chrome-path }}"
+          --viewport "$VRT_VIEWPORT" \
+          --chromiumPath "$CHROME_PATH"
 
     - name: Compare & report (pixelmatch 緑/赤)
       id: chromagic
