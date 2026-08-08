@@ -25,7 +25,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           storybook-static-path: dist/storybook # ビルド出力先が違う場合
-          viewport: "1280x800" # PC 幅で撮りたい場合
+          viewport: "390x844,1280x800" # SP/PC 両方の幅で撮りたい場合(カンマ区切り、ファイル名に _WxH が付く)
           matching-threshold: "0.1" # 少し鈍感に(誤検知を減らす)
           threshold-pixel: "100" # 100px 超の変化だけ「変更」扱い
           baseline-branch: "chromagic-baseline" # ブランチ名を変える場合

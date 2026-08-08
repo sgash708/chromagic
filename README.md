@@ -66,7 +66,7 @@ Ready-to-copy workflows for `.github/workflows/vrt.yaml`:
 |---|---|---|
 | `github-token` | (required) | `GITHUB_TOKEN`. Used for posting comments and pushing branches |
 | `storybook-static-path` | `storybook-static` | Built Storybook static directory |
-| `viewport` | `390x844` | Capture viewport WxH |
+| `viewport` | `390x844` | Capture viewport WxH. Comma-separated for multiple viewports (e.g. `390x844,1280x800`) — filenames get a `_WxH` suffix only when more than one is given, so single-viewport setups keep their existing baseline |
 | `port` | `6006` | Local port for serving the static build |
 | `matching-threshold` | `0.05` | pixelmatch sensitivity (0-1, smaller = more sensitive) |
 | `threshold-pixel` | `50` | Stories with more changed pixels than this count as "changed" |

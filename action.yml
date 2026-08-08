@@ -14,7 +14,7 @@ inputs:
     required: false
     default: "storybook-static"
   viewport:
-    description: "撮影ビューポート WxH。"
+    description: "撮影ビューポート WxH。カンマ区切りで複数指定可(例: 390x844,1280x800)。複数指定時のみファイル名に _WxH サフィックスが付く(単一指定時は従来通り)。"
     required: false
     default: "390x844"
   port:
@@ -89,11 +89,19 @@ runs:
         VRT_VIEWPORT: ${{ inputs.viewport }}
         CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       run: |
+        # viewport はカンマ区切りで複数指定可。storycap の -V を viewport ごとに渡す
+        # (storycap は viewport を複数渡すと自動でファイル名に _WxH サフィックスを付ける。
+        #  単一指定時は挙動が変わらないので既存 baseline との後方互換性は保たれる)。
+        IFS=',' read -ra CHROMAGIC_VIEWPORTS <<< "$VRT_VIEWPORT"
+        VIEWPORT_ARGS=()
+        for vp in "${CHROMAGIC_VIEWPORTS[@]}"; do
+          VIEWPORT_ARGS+=(--viewport "$vp")
+        done
         "$GITHUB_ACTION_PATH/node_modules/.bin/storycap" \
           --serverCmd "\"$GITHUB_ACTION_PATH/node_modules/.bin/http-server\" \"$STORYBOOK_STATIC_PATH\" -p $VRT_PORT -s" \
           "http://localhost:$VRT_PORT" \
           -o "$RUNNER_TEMP/vrt-current" \
-          --viewport "$VRT_VIEWPORT" \
+          "${VIEWPORT_ARGS[@]}" \
           --chromiumPath "$CHROME_PATH"
 
     - name: Compare & report (pixelmatch 緑/赤)
