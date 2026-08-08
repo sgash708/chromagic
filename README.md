@@ -9,8 +9,11 @@ A replacement for reg-actions. The biggest difference is the **two-color green/r
 
 ## What it looks like
 
-When you open a PR, every changed story gets **expected / actual / difference** side by side in a PR comment.
-Below is a QtyStepper whose "+" was turned green and given wider spacing (difference: 🔴 = old position / 🟢 = new position):
+When you open a PR, every changed story gets **expected / actual / difference** side by side in a PR comment:
+
+![chromagic PR comment demo](docs/vrt-demo.gif)
+
+Here's a closer look — a QtyStepper whose "+" was turned green and given wider spacing (difference: 🔴 = old position / 🟢 = new position):
 
 ![chromagic example](docs/example-diff.png)
 
