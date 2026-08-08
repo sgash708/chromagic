@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@semantic-release/exec": "^7.1.0",
-    "semantic-release": "^25.0.5"
+    "semantic-release": "^25.0.9"
   },
   "overrides": {
     "axios": "^1.19.0",
