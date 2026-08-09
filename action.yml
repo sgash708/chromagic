@@ -115,7 +115,10 @@ runs:
       id: chrome
       uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2
       with:
-        install-dependencies: true
+        # install-dependencies: true は毎回 apt-get update を走らせ約7秒かかる。
+        # GitHub-hosted ubuntu-latest には Chrome 実行に必要な共有ライブラリが
+        # 標準で揃っている(実測ログで全依存が already the newest version)ため false にする。
+        install-dependencies: false
 
     - name: Save Chrome for Testing cache
       if: ${{ steps.chrome-cache.outputs.cache-hit != 'true' }}
