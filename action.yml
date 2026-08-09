@@ -62,12 +62,44 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Install Japanese fonts (Noto CJK)
+    # fonts-noto-cjk は約61MBあり apt install の大半の時間を占める。
+    # /usr/share/fonts, /var/cache/fontconfig は root 所有なので、actions/cache が
+    # restore 時に書き込めるよう事前に所有権を runner ユーザーへ渡しておく。
+    - name: Prepare fonts cache dir
       if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        sudo mkdir -p /usr/share/fonts/opentype/noto /var/cache/fontconfig
+        sudo chown -R "$(id -u):$(id -g)" /usr/share/fonts/opentype/noto /var/cache/fontconfig
+
+    - name: Restore Noto CJK fonts cache
+      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      id: fonts-cache
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          /usr/share/fonts/opentype/noto
+          /var/cache/fontconfig
+        key: chromagic-noto-cjk-${{ runner.os }}
+
+    - name: Install Japanese fonts (Noto CJK)
+      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+        # apt が root 所有に戻すので、save 前に再度 runner ユーザーへ渡す
+        sudo chown -R "$(id -u):$(id -g)" /usr/share/fonts/opentype/noto /var/cache/fontconfig
+        fc-cache -f
+
+    - name: Save Noto CJK fonts cache
+      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          /usr/share/fonts/opentype/noto
+          /var/cache/fontconfig
+        key: ${{ steps.fonts-cache.outputs.cache-primary-key }}
 
     # browser-actions/setup-chrome は RUNNER_TOOL_CACHE 配下にキャッシュする作りだが、
     # GitHub-hosted runner は毎回使い捨て VM なのでジョブをまたいでは残らない。
