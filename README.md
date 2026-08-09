@@ -7,6 +7,17 @@ A **Chromatic-like** Storybook visual regression testing GitHub Action with no e
 
 A replacement for reg-actions. The biggest difference is the **two-color green/red diff** (🟢 = added pixels / 🔴 = removed pixels), which makes **position shifts** obvious at a glance.
 
+## Speed
+
+Every cacheable step (Chrome for Testing binary, npm dependencies, the 61MB Noto CJK font package) is cached automatically — no config needed.
+
+| Run | `chromagic` step duration |
+|---|---|
+| Cold (first run / no cache yet) | ~31–42s |
+| **Warm (cache hit, typical PR run)** | **~16s** |
+
+Measured on a minimal Storybook sample repo, `ubuntu-latest`, 2 vCPU.
+
 ## What it looks like
 
 When you open a PR, every changed story gets **expected / actual / difference** side by side in a PR comment:
