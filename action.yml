@@ -75,7 +75,7 @@ runs:
     - name: Restore Noto CJK fonts cache
       if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
       id: fonts-cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           /usr/share/fonts/opentype/noto
@@ -106,7 +106,7 @@ runs:
     # actions/cache で永続化し、2回目以降のダウンロードをスキップする。
     - name: Restore Chrome for Testing cache
       id: chrome-cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.tool_cache }}/setup-chrome
         key: chromagic-chrome-${{ runner.os }}-${{ runner.arch }}
@@ -130,7 +130,7 @@ runs:
     # action 自体の node_modules(storycap 等)も package-lock.json のハッシュでキャッシュする。
     - name: Restore action dependencies cache
       id: deps-cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.action_path }}/node_modules
         key: chromagic-deps-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', github.action_path)) }}
