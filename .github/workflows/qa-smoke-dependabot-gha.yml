@@ -3,6 +3,7 @@ name: QA smoke (dependabot gha bump)
 # 一時検証用: #12/#13/#14 (actions/cache/restore, actions/cache/save, setup-chrome の
 # SHA更新) が composite action 内で実際に動くかを dogfood する。検証後は削除する。
 on:
+  pull_request:
   workflow_dispatch:
 
 permissions:
