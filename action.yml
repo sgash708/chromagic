@@ -94,7 +94,7 @@ runs:
 
     - name: Save Noto CJK fonts cache
       if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           /usr/share/fonts/opentype/noto
@@ -122,7 +122,7 @@ runs:
 
     - name: Save Chrome for Testing cache
       if: ${{ steps.chrome-cache.outputs.cache-hit != 'true' }}
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.tool_cache }}/setup-chrome
         key: ${{ steps.chrome-cache.outputs.cache-primary-key }}
@@ -143,7 +143,7 @@ runs:
 
     - name: Save action dependencies cache
       if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.action_path }}/node_modules
         key: ${{ steps.deps-cache.outputs.cache-primary-key }}
