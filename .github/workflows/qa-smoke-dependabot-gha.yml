@@ -1,0 +1,30 @@
+name: QA smoke (dependabot gha bump)
+
+# 一時検証用: #12/#13/#14 (actions/cache/restore, actions/cache/save, setup-chrome の
+# SHA更新) が composite action 内で実際に動くかを dogfood する。検証後は削除する。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Prepare empty storybook-static stub
+        run: mkdir -p smoke-storybook-static
+
+      - name: Run chromagic action (expected to fail at storycap step)
+        id: chromagic
+        continue-on-error: true
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          storybook-static-path: smoke-storybook-static
+
+      - name: Report outcome
+        run: |
+          echo "chromagic step outcome: ${{ steps.chromagic.outcome }}"
