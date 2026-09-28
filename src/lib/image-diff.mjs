@@ -47,7 +47,7 @@ export function buildComment({ marker, title, changed, added, removed, total, ur
   const ok = changed.length === 0 && added.length === 0 && removed.length === 0;
   lines.push(`## ${title}`);
   lines.push("");
-  lines.push(ok ? "✅ 視覚的差分なし。" : "🟠 差分を検出しました(🟢=増えた / 🔴=消えたピクセル)。");
+  lines.push(ok ? "✅ 視覚的差分なし。" : "🟠 差分を検出しました（🟢=増えた / 🔴=消えたピクセル）。");
   lines.push("");
   lines.push("| pass | changed | new | deleted |");
   lines.push("|:--:|:--:|:--:|:--:|");
@@ -62,11 +62,11 @@ export function buildComment({ marker, title, changed, added, removed, total, ur
     lines.push("");
   }
   if (added.length) {
-    lines.push("<details><summary>🆕 new</summary>\n");
+    lines.push("<details><summary>🆕 new stories</summary>\n");
     for (const rel of added) lines.push(`- \`${rel}\` ![new](${rawUrl({ ...urlCtx, kind: "actual", rel })})`);
     lines.push("\n</details>");
   }
   lines.push("");
-  lines.push(`<sub>images: \`${urlCtx.reportBranch}/${urlCtx.runId}\` ／ run ${urlCtx.runId}</sub>`);
+  lines.push(`<sub>baseline: \`${urlCtx.baselineBranch}\` ／ images: \`${urlCtx.reportBranch}/${urlCtx.runId}\` ／ run ${urlCtx.runId}</sub>`);
   return lines.join("\n");
 }

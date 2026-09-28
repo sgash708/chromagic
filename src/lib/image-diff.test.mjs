@@ -70,10 +70,11 @@ test("buildComment reports no-diff message when nothing changed", () => {
     marker: "<!-- chromagic-vrt -->",
     title: "🎨 chromagic — Visual Regression",
     changed: [], added: [], removed: [], total: 3,
-    urlCtx: { server: "https://github.com", repo: "o/r", reportBranch: "vrt-reports", runId: "1" },
+    urlCtx: { server: "https://github.com", repo: "o/r", reportBranch: "vrt-reports", runId: "1", baselineBranch: "vrt-baseline" },
   });
   assert.match(body, /視覚的差分なし/);
   assert.match(body, /<!-- chromagic-vrt -->/);
+  assert.match(body, /baseline: `vrt-baseline`/);
 });
 
 test("buildComment lists changed stories with expected/actual/diff links", () => {
@@ -81,9 +82,23 @@ test("buildComment lists changed stories with expected/actual/diff links", () =>
     marker: "<!-- chromagic-vrt -->",
     title: "🎨 chromagic — Visual Regression",
     changed: [{ rel: "Button.png", pixels: 120 }], added: [], removed: [], total: 3,
-    urlCtx: { server: "https://github.com", repo: "o/r", reportBranch: "vrt-reports", runId: "1" },
+    urlCtx: { server: "https://github.com", repo: "o/r", reportBranch: "vrt-reports", runId: "1", baselineBranch: "vrt-baseline" },
   });
   assert.match(body, /Button\.png/);
   assert.match(body, /expected/);
   assert.match(body, /actual/);
+  assert.match(body, /差分を検出しました（/);
+  assert.match(body, /baseline: `vrt-baseline`/);
+});
+
+test("buildComment uses fullwidth parens and includes 'new stories' header for added items", () => {
+  const body = buildComment({
+    marker: "<!-- chromagic-vrt -->",
+    title: "🎨 chromagic — Visual Regression",
+    changed: [], added: ["NewComponent.png"], removed: [], total: 3,
+    urlCtx: { server: "https://github.com", repo: "o/r", reportBranch: "vrt-reports", runId: "1", baselineBranch: "vrt-baseline" },
+  });
+  assert.match(body, /🆕 new stories/);
+  assert.match(body, /差分を検出しました（🟢=増えた \/ 🔴=消えたピクセル）/);
+  assert.match(body, /baseline: `vrt-baseline`/);
 });
