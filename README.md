@@ -94,6 +94,7 @@ Ready-to-copy workflows for `.github/workflows/vrt.yaml`:
 | `pages-viewport` | (empty, inherits `viewport`) | Viewport for page VRT |
 | `pages-check-name` | `chromagic/pages-approval` | Check run name used for the approval gate |
 | `mode` | `capture` | `capture` or `approve` |
+| `storybook` | `true` | Run Storybook VRT (storycap capture + compare). Set to `false` for page-VRT-only consumers with no `storybook-static/` build |
 
 ## Outputs
 
@@ -126,7 +127,15 @@ Beyond Storybook stories, chromagic can also catch visual regressions on the act
 - A PR with diffs gets a failing `chromagic/pages-approval` check, and branch protection can block the merge until **someone other than the PR author** comments `/chromagic approve` (and has write access to the repo)
 - See [`examples/vrt-pages.yaml`](examples/vrt-pages.yaml) and [`examples/vrt-pages-approve.yaml`](examples/vrt-pages-approve.yaml) for usage
 
-If neither `pages-start-command` nor `pages-config` is set, page VRT doesn't run and only the existing Storybook VRT behavior applies.
+If neither `pages-start-command` nor `pages-config` is set, page VRT doesn't run and only the existing Storybook VRT behavior applies. If you only want page VRT and have no Storybook build, set `storybook: "false"` to skip the storycap capture/compare steps entirely (otherwise storycap fails when `storybook-static/` doesn't exist).
+
+### Security note
+
+The approval gate protects against unreviewed **visual** changes slipping through — it is not a sandbox against a malicious PR's own code.
+
+- For same-repository PRs, GitHub Actions grants the PR's own workflow the same `GITHUB_TOKEN` (with `checks: write`) that chromagic uses. A modified workflow file, a modified `chromagic.pages.json`, or a modified login script could in principle write a `success` check run directly, bypassing the approval flow — this is a general property of any `pull_request`-triggered Actions gate, not something chromagic's code can prevent.
+- If you want the approval gate to be meaningful against an adversarial contributor (not just against innocent mistakes), protect your workflow files, `chromagic.pages.json`, and any login script with CODEOWNERS + required reviews (branch protection).
+- You must configure branch protection to require the `chromagic/pages-approval` check (or whatever you set `pages-check-name` to) — chromagic cannot enforce that from the action side.
 
 ## How it works
 

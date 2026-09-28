@@ -94,6 +94,7 @@ jobs:
 | `pages-viewport` | (空、`viewport`を継承) | 実ページVRTのビューポート |
 | `pages-check-name` | `chromagic/pages-approval` | 承認ゲートに使うcheck run名 |
 | `mode` | `capture` | `capture`または`approve` |
+| `storybook` | `true` | Storybook VRT(storycap撮影+比較)を実行する。`storybook-static/`のビルドが無く実ページVRTのみ使いたい場合は`false`にする |
 
 ## outputs
 
@@ -126,7 +127,15 @@ Storybookのstoryだけでなく、実際にデプロイされる画面そのも
 - 差分が出たPRは `chromagic/pages-approval` checkが失敗した状態になり、**PR作成者以外**が `/chromagic approve` とコメントする(かつリポジトリへのwrite権限を持つ)まで、branch protectionでマージをブロックできる
 - 使い方は [`examples/vrt-pages.yaml`](examples/vrt-pages.yaml) と [`examples/vrt-pages-approve.yaml`](examples/vrt-pages-approve.yaml) を参照
 
-`pages-start-command`または`pages-config`を指定しなければ、実ページVRTは実行されず既存のStorybook VRTの挙動のみになる。
+`pages-start-command`または`pages-config`を指定しなければ、実ページVRTは実行されず既存のStorybook VRTの挙動のみになる。実ページVRTのみ使いたくStorybookのビルドが無い場合は、`storybook: "false"`を指定するとstorycapの撮影・比較ステップ自体をスキップできる(指定しないと`storybook-static/`が無い環境でstorycapが失敗する)。
+
+### セキュリティ上の注意
+
+この承認ゲートが防ぐのは未レビューの**見た目の変更**が紛れ込むことであり、悪意あるPR自体のコードに対するサンドボックスではない。
+
+- 同一リポジトリ内のPRでは、GitHub ActionsはPR自身のworkflowに対してもchromagicが使うのと同じ`GITHUB_TOKEN`(`checks: write`権限付き)を与える。workflowファイル・`chromagic.pages.json`・ログインスクリプトを改変すれば、承認フローを経ずに直接`success`のcheck runを書き込むことも理屈上可能——これは`pull_request`トリガーのActionsゲート全般に共通する性質であり、chromagicのコード側では防げない。
+- 悪意あるcontributorに対しても承認ゲートを意味あるものにしたい場合(単純な事故防止だけでなく)は、workflowファイル・`chromagic.pages.json`・ログインスクリプトをCODEOWNERS + 必須レビュー(branch protection)で保護すること。
+- `chromagic/pages-approval`check(`pages-check-name`で変更している場合はその名前)をbranch protectionのrequired checkに設定する必要がある——これはconsumer側の設定であり、chromagic側から強制することはできない。
 
 ## 仕組み
 
