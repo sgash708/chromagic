@@ -10,6 +10,9 @@
     "type": "git",
     "url": "https://github.com/sgash708/chromagic.git"
   },
+  "scripts": {
+    "test": "node --test src/lib/*.test.mjs"
+  },
   "dependencies": {
     "fast-glob": "^3.3.2",
     "http-server": "^14.1.1",
