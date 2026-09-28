@@ -10,16 +10,13 @@ on:
 
 permissions:
   checks: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   approve:
-    if: ${{ github.event.issue.pull_request }}
+    if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/chromagic approve') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
       - uses: sgash708/chromagic@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

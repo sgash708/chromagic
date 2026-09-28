@@ -1,6 +1,6 @@
 import { test, mock, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { apiFetch, upsertComment, createOrUpdateCheckRun } from "./github-api.mjs";
+import { apiFetch, upsertComment, createOrUpdateCheckRun, getCheckRun } from "./github-api.mjs";
 
 afterEach(() => {
   mock.reset();
@@ -64,4 +64,18 @@ test("createOrUpdateCheckRun updates the existing run for the same sha instead o
   await createOrUpdateCheckRun({ repo: "o/r", sha: "abc123", name: "chromagic/pages-approval", conclusion: "success", summary: "approved", token: "t", apiBase: "https://api.github.com" });
   assert.equal(calls.at(-1).method, "PATCH");
   assert.match(calls.at(-1).url, /\/repos\/o\/r\/check-runs\/7$/);
+});
+
+test("getCheckRun returns the matching check run when present", async () => {
+  global.fetch = mock.fn(async () =>
+    jsonResponse(200, { check_runs: [{ id: 7, name: "chromagic/pages-approval", conclusion: "failure" }] })
+  );
+  const run = await getCheckRun({ repo: "o/r", sha: "abc123", name: "chromagic/pages-approval", token: "t", apiBase: "https://api.github.com" });
+  assert.deepEqual(run, { id: 7, name: "chromagic/pages-approval", conclusion: "failure" });
+});
+
+test("getCheckRun returns null when no matching check run exists", async () => {
+  global.fetch = mock.fn(async () => jsonResponse(200, { check_runs: [] }));
+  const run = await getCheckRun({ repo: "o/r", sha: "abc123", name: "chromagic/pages-approval", token: "t", apiBase: "https://api.github.com" });
+  assert.equal(run, null);
 });

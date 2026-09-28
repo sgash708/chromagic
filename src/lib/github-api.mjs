@@ -22,6 +22,16 @@ export async function upsertComment({ prNumber, body, marker, token, apiBase, re
   }
 }
 
+export async function getCheckRun({ repo, sha, name, token, apiBase }) {
+  const existing = await apiFetch(
+    "GET",
+    `/repos/${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}`,
+    undefined,
+    { token, apiBase }
+  );
+  return existing.check_runs?.find((r) => r.name === name) ?? null;
+}
+
 export async function createOrUpdateCheckRun({ repo, sha, name, conclusion, summary, token, apiBase }) {
   const existing = await apiFetch(
     "GET",
