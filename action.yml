@@ -81,6 +81,10 @@ inputs:
     description: "capture(既定): VRT撮影・比較を実行。approve: /chromagic approve コメントの承認処理のみ実行。"
     required: false
     default: "capture"
+  storybook:
+    description: "trueならStorybook VRT(storycap撮影+比較)を実行する。実ページVRTのみ使いたい場合はfalseにする。"
+    required: false
+    default: "true"
 
 outputs:
   changed:
@@ -106,14 +110,14 @@ runs:
     # /usr/share/fonts, /var/cache/fontconfig は root 所有なので、actions/cache が
     # restore 時に書き込めるよう事前に所有権を runner ユーザーへ渡しておく。
     - name: Prepare fonts cache dir
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' }}
       shell: bash
       run: |
         sudo mkdir -p /usr/share/fonts/opentype/noto /var/cache/fontconfig
         sudo chown -R "$(id -u):$(id -g)" /usr/share/fonts/opentype/noto /var/cache/fontconfig
 
     - name: Restore Noto CJK fonts cache
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' }}
       id: fonts-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -123,7 +127,7 @@ runs:
         key: chromagic-noto-cjk-${{ runner.os }}
 
     - name: Install Japanese fonts (Noto CJK)
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         sudo apt-get update
@@ -133,7 +137,7 @@ runs:
         fc-cache -f
 
     - name: Save Noto CJK fonts cache
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -145,6 +149,7 @@ runs:
     # GitHub-hosted runner は毎回使い捨て VM なのでジョブをまたいでは残らない。
     # actions/cache で永続化し、2回目以降のダウンロードをスキップする。
     - name: Restore Chrome for Testing cache
+      if: ${{ inputs.mode == 'capture' }}
       id: chrome-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -152,6 +157,7 @@ runs:
         key: chromagic-chrome-${{ runner.os }}-${{ runner.arch }}
 
     - name: Setup Chrome for Testing
+      if: ${{ inputs.mode == 'capture' }}
       id: chrome
       uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2
       with:
@@ -161,7 +167,7 @@ runs:
         install-dependencies: false
 
     - name: Save Chrome for Testing cache
-      if: ${{ steps.chrome-cache.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.mode == 'capture' && steps.chrome-cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.tool_cache }}/setup-chrome
@@ -189,7 +195,7 @@ runs:
         key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
     - name: Capture stories (storycap)
-      if: ${{ inputs.mode == 'capture' }}
+      if: ${{ inputs.mode == 'capture' && inputs.storybook == 'true' }}
       shell: bash
       # inputs は run ブロックへ直接展開せず env 経由で渡す(shell/式インジェクション対策)。
       env:
@@ -215,7 +221,7 @@ runs:
 
     - name: Compare & report (pixelmatch 緑/赤)
       id: chromagic
-      if: ${{ inputs.mode == 'capture' }}
+      if: ${{ inputs.mode == 'capture' && inputs.storybook == 'true' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -248,6 +254,7 @@ runs:
         PAGES_BASELINE_BRANCH: ${{ inputs.pages-baseline-branch }}
         PAGES_REPORT_BRANCH: ${{ inputs.pages-report-branch }}
         PAGES_VIEWPORT: ${{ inputs.pages-viewport }}
+        VRT_VIEWPORT: ${{ inputs.viewport }}
         PAGES_CHECK_NAME: ${{ inputs.pages-check-name }}
         VRT_MATCHING_THRESHOLD: ${{ inputs.matching-threshold }}
         VRT_THRESHOLD_PIXEL: ${{ inputs.threshold-pixel }}

@@ -20,6 +20,7 @@ jobs:
       - uses: sgash708/chromagic@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          storybook: "false" # 実ページVRTのみ使う場合はStorybook VRT(storycap)をスキップする
           pages-start-command: "bun run start"
           pages-base-url: "http://localhost:3000"
           pages-config: "chromagic.pages.json"

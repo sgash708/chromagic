@@ -30,6 +30,7 @@ const {
   PAGES_BASELINE_BRANCH,
   PAGES_REPORT_BRANCH,
   PAGES_VIEWPORT,
+  VRT_VIEWPORT,
   PAGES_CHECK_NAME,
   VRT_MATCHING_THRESHOLD,
   VRT_THRESHOLD_PIXEL,
@@ -57,7 +58,7 @@ async function main() {
 
   await waitForServer(PAGES_BASE_URL, Number.parseInt(PAGES_HEALTH_CHECK_TIMEOUT || "30", 10));
 
-  const [w, h] = (PAGES_VIEWPORT || "1280x800").split("x").map(Number);
+  const [w, h] = (PAGES_VIEWPORT || VRT_VIEWPORT?.split(",")[0] || "1280x800").split("x").map(Number);
   const viewport = { width: w, height: h };
   const browser = await chromium.launch({ executablePath: CHROME_PATH });
 
