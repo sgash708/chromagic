@@ -115,7 +115,7 @@ async function main() {
     marker: COMMENT_MARKER,
     title: "🎨 chromagic — Visual Regression",
     changed, added, removed, total: currentPngs.length,
-    urlCtx: { server: SERVER, repo: REPO, reportBranch: REPORT_BRANCH, runId: RUN_ID },
+    urlCtx: { server: SERVER, repo: REPO, reportBranch: REPORT_BRANCH, runId: RUN_ID, baselineBranch: BASELINE_BRANCH },
   });
   await upsertComment({ prNumber, body, marker: COMMENT_MARKER, token: TOKEN, apiBase: API, repo: REPO });
   log(`chromagic: PR #${prNumber} にコメントしました。`);
