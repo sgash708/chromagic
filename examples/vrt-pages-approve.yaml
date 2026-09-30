@@ -1,0 +1,23 @@
+# .github/workflows/vrt-pages-approve.yaml
+# PRコメントで `/chromagic approve` と投稿すると、実ページVRTの承認ゲート
+# (chromagic/pages-approval check) を success にしてマージ可能にする。
+# 事前に branch protection で "chromagic/pages-approval" を required check に設定しておくこと。
+name: Page VRT Approve
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  approve:
+    if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/chromagic approve') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sgash708/chromagic@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          mode: approve

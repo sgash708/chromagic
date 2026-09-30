@@ -41,6 +41,54 @@ inputs:
     description: "Noto CJK フォントを入れる(Linux)。日本語を豆腐にしないため。"
     required: false
     default: "true"
+  pages-config:
+    description: "実ページVRT対象URL一覧の設定ファイル。存在しなければ実ページVRTはスキップされる。"
+    required: false
+    default: "chromagic.pages.json"
+  pages-start-command:
+    description: "実ページVRT用にアプリを起動するコマンド。未指定なら実ページVRTはスキップされる。"
+    required: false
+    default: ""
+  pages-base-url:
+    description: "起動したアプリへアクセスするベースURL。"
+    required: false
+    default: "http://localhost:3000"
+  pages-login-script:
+    description: "ログイン用Playwrightスクリプトのパス。省略時は未ログイン状態でキャプチャする。"
+    required: false
+    default: ""
+  pages-health-check-timeout:
+    description: "アプリ起動待ちのタイムアウト秒数。"
+    required: false
+    default: "30"
+  pages-baseline-branch:
+    description: "実ページ用ベースライン画像ブランチ。"
+    required: false
+    default: "vrt-baseline-pages"
+  pages-report-branch:
+    description: "実ページ用PRコメント画像のホストブランチ。"
+    required: false
+    default: "vrt-reports-pages"
+  pages-viewport:
+    description: "実ページVRTのビューポート WxH。省略時は viewport の1つ目の値を使う。"
+    required: false
+    default: ""
+  pages-check-name:
+    description: "実ページVRTの承認ゲートに使う check run 名。branch protection の required check にはこの名前を指定する。"
+    required: false
+    default: "chromagic/pages-approval"
+  pages-allow-self-approve:
+    description: "trueにするとPR作成者自身の /chromagic approve でも承認できる(write権限チェックは引き続き必須)。レビュアーが他にいないソロ開発向け。"
+    required: false
+    default: "false"
+  mode:
+    description: "capture(既定): VRT撮影・比較を実行。approve: /chromagic approve コメントの承認処理のみ実行。"
+    required: false
+    default: "capture"
+  storybook:
+    description: "trueならStorybook VRT(storycap撮影+比較)を実行する。実ページVRTのみ使いたい場合はfalseにする。"
+    required: false
+    default: "true"
 
 outputs:
   changed:
@@ -66,14 +114,14 @@ runs:
     # /usr/share/fonts, /var/cache/fontconfig は root 所有なので、actions/cache が
     # restore 時に書き込めるよう事前に所有権を runner ユーザーへ渡しておく。
     - name: Prepare fonts cache dir
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' }}
       shell: bash
       run: |
         sudo mkdir -p /usr/share/fonts/opentype/noto /var/cache/fontconfig
         sudo chown -R "$(id -u):$(id -g)" /usr/share/fonts/opentype/noto /var/cache/fontconfig
 
     - name: Restore Noto CJK fonts cache
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' }}
       id: fonts-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -83,7 +131,7 @@ runs:
         key: chromagic-noto-cjk-${{ runner.os }}
 
     - name: Install Japanese fonts (Noto CJK)
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         sudo apt-get update
@@ -93,7 +141,7 @@ runs:
         fc-cache -f
 
     - name: Save Noto CJK fonts cache
-      if: ${{ inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.mode == 'capture' && inputs.install-fonts == 'true' && runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -105,6 +153,7 @@ runs:
     # GitHub-hosted runner は毎回使い捨て VM なのでジョブをまたいでは残らない。
     # actions/cache で永続化し、2回目以降のダウンロードをスキップする。
     - name: Restore Chrome for Testing cache
+      if: ${{ inputs.mode == 'capture' }}
       id: chrome-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -112,6 +161,7 @@ runs:
         key: chromagic-chrome-${{ runner.os }}-${{ runner.arch }}
 
     - name: Setup Chrome for Testing
+      if: ${{ inputs.mode == 'capture' }}
       id: chrome
       uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2
       with:
@@ -121,7 +171,7 @@ runs:
         install-dependencies: false
 
     - name: Save Chrome for Testing cache
-      if: ${{ steps.chrome-cache.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.mode == 'capture' && steps.chrome-cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.tool_cache }}/setup-chrome
@@ -149,6 +199,7 @@ runs:
         key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
     - name: Capture stories (storycap)
+      if: ${{ inputs.mode == 'capture' && inputs.storybook == 'true' }}
       shell: bash
       # inputs は run ブロックへ直接展開せず env 経由で渡す(shell/式インジェクション対策)。
       env:
@@ -174,6 +225,7 @@ runs:
 
     - name: Compare & report (pixelmatch 緑/赤)
       id: chromagic
+      if: ${{ inputs.mode == 'capture' && inputs.storybook == 'true' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -183,3 +235,49 @@ runs:
         VRT_MATCHING_THRESHOLD: ${{ inputs.matching-threshold }}
         VRT_THRESHOLD_PIXEL: ${{ inputs.threshold-pixel }}
       run: node "$GITHUB_ACTION_PATH/src/main.mjs"
+
+    - name: Start app for page VRT
+      if: ${{ inputs.mode == 'capture' && inputs.pages-start-command != '' }}
+      shell: bash
+      env:
+        PAGES_START_COMMAND: ${{ inputs.pages-start-command }}
+      run: |
+        nohup bash -c "$PAGES_START_COMMAND" > "$RUNNER_TEMP/chromagic-pages-app.log" 2>&1 &
+        echo $! > "$RUNNER_TEMP/chromagic-pages-app.pid"
+
+    - name: Capture & compare pages (実ページVRT)
+      if: ${{ inputs.mode == 'capture' && inputs.pages-start-command != '' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        PAGES_CONFIG_PATH: ${{ inputs.pages-config }}
+        PAGES_START_COMMAND: ${{ inputs.pages-start-command }}
+        PAGES_BASE_URL: ${{ inputs.pages-base-url }}
+        PAGES_LOGIN_SCRIPT: ${{ inputs.pages-login-script }}
+        PAGES_HEALTH_CHECK_TIMEOUT: ${{ inputs.pages-health-check-timeout }}
+        PAGES_BASELINE_BRANCH: ${{ inputs.pages-baseline-branch }}
+        PAGES_REPORT_BRANCH: ${{ inputs.pages-report-branch }}
+        PAGES_VIEWPORT: ${{ inputs.pages-viewport }}
+        VRT_VIEWPORT: ${{ inputs.viewport }}
+        PAGES_CHECK_NAME: ${{ inputs.pages-check-name }}
+        VRT_MATCHING_THRESHOLD: ${{ inputs.matching-threshold }}
+        VRT_THRESHOLD_PIXEL: ${{ inputs.threshold-pixel }}
+        CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      run: node "$GITHUB_ACTION_PATH/src/pages-entry.mjs"
+
+    - name: Stop app for page VRT
+      if: ${{ always() && inputs.mode == 'capture' && inputs.pages-start-command != '' }}
+      shell: bash
+      run: |
+        if [ -f "$RUNNER_TEMP/chromagic-pages-app.pid" ]; then
+          kill "$(cat "$RUNNER_TEMP/chromagic-pages-app.pid")" 2>/dev/null || true
+        fi
+
+    - name: Approve page VRT (mode=approve)
+      if: ${{ inputs.mode == 'approve' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        PAGES_CHECK_NAME: ${{ inputs.pages-check-name }}
+        PAGES_ALLOW_SELF_APPROVE: ${{ inputs.pages-allow-self-approve }}
+      run: node "$GITHUB_ACTION_PATH/src/approve-entry.mjs"

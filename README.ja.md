@@ -84,6 +84,18 @@ jobs:
 | `baseline-branch` | `vrt-baseline` | 基準画像ブランチ |
 | `report-branch` | `vrt-reports` | PR コメント画像のホストブランチ |
 | `install-fonts` | `true` | Noto CJK を入れる(日本語の豆腐化防止・Linux) |
+| `pages-config` | `chromagic.pages.json` | 実ページVRT対象URL一覧の設定ファイル。無ければ実ページVRTはスキップ |
+| `pages-start-command` | (空) | 実ページVRT用アプリ起動コマンド。未指定ならスキップ |
+| `pages-base-url` | `http://localhost:3000` | 起動したアプリへのベースURL |
+| `pages-login-script` | (空) | ログイン用Playwrightスクリプトのパス |
+| `pages-health-check-timeout` | `30` | アプリ起動待ちのタイムアウト秒数 |
+| `pages-baseline-branch` | `vrt-baseline-pages` | 実ページ用ベースラインブランチ |
+| `pages-report-branch` | `vrt-reports-pages` | 実ページ用レポートブランチ |
+| `pages-viewport` | (空、`viewport`を継承) | 実ページVRTのビューポート |
+| `pages-check-name` | `chromagic/pages-approval` | 承認ゲートに使うcheck run名 |
+| `pages-allow-self-approve` | `false` | `true`にするとPR作成者自身の `/chromagic approve` でも承認できる(write権限チェックは引き続き必須)。レビュアーが他にいないソロ開発向け |
+| `mode` | `capture` | `capture`または`approve` |
+| `storybook` | `true` | Storybook VRT(storycap撮影+比較)を実行する。`storybook-static/`のビルドが無く実ページVRTのみ使いたい場合は`false`にする |
 
 ## outputs
 
@@ -105,6 +117,26 @@ jobs:
 - if: ${{ steps.vrt.outputs.changed != '0' }}
   run: echo "::warning::${{ steps.vrt.outputs.changed }} 件の視覚差分あり"
 ```
+
+## 実ページVRT（任意）
+
+Storybookのstoryだけでなく、実際にデプロイされる画面そのものの見た目のデグレも検知できる。
+
+- consumerが指定した起動コマンド(`pages-start-command`)でアプリを起動し、`chromagic.pages.json`に列挙したURLを撮影
+- ログインが必要な画面は、consumerが用意したPlaywrightログインスクリプト(`pages-login-script`)でstorage stateを取得してから撮影
+- baseline/reportはStorybookとは別ブランチ(`vrt-baseline-pages` / `vrt-reports-pages`)で管理
+- 差分が出たPRは `chromagic/pages-approval` checkが失敗した状態になり、**PR作成者以外**が `/chromagic approve` とコメントする(かつリポジトリへのwrite権限を持つ)まで、branch protectionでマージをブロックできる
+- 使い方は [`examples/vrt-pages.yaml`](examples/vrt-pages.yaml) と [`examples/vrt-pages-approve.yaml`](examples/vrt-pages-approve.yaml) を参照
+
+`pages-start-command`または`pages-config`を指定しなければ、実ページVRTは実行されず既存のStorybook VRTの挙動のみになる。実ページVRTのみ使いたくStorybookのビルドが無い場合は、`storybook: "false"`を指定するとstorycapの撮影・比較ステップ自体をスキップできる(指定しないと`storybook-static/`が無い環境でstorycapが失敗する)。
+
+### セキュリティ上の注意
+
+この承認ゲートが防ぐのは未レビューの**見た目の変更**が紛れ込むことであり、悪意あるPR自体のコードに対するサンドボックスではない。
+
+- 同一リポジトリ内のPRでは、GitHub ActionsはPR自身のworkflowに対してもchromagicが使うのと同じ`GITHUB_TOKEN`(`checks: write`権限付き)を与える。workflowファイル・`chromagic.pages.json`・ログインスクリプトを改変すれば、承認フローを経ずに直接`success`のcheck runを書き込むことも理屈上可能——これは`pull_request`トリガーのActionsゲート全般に共通する性質であり、chromagicのコード側では防げない。
+- 悪意あるcontributorに対しても承認ゲートを意味あるものにしたい場合(単純な事故防止だけでなく)は、workflowファイル・`chromagic.pages.json`・ログインスクリプトをCODEOWNERS + 必須レビュー(branch protection)で保護すること。
+- `chromagic/pages-approval`check(`pages-check-name`で変更している場合はその名前)をbranch protectionのrequired checkに設定する必要がある——これはconsumer側の設定であり、chromagic側から強制することはできない。
 
 ## 仕組み
 

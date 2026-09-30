@@ -3,13 +3,12 @@
 // pixelmatch で比較し、変化を「赤=消えた / 緑=増えた」の2色 diff で可視化。
 // PR では actual/expected/diff を report ブランチへ push し、PR コメントにインライン表示する。
 // デフォルトブランチへの push 時は現行スクショを baseline ブランチへ保存(=次回比較の基準)。
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import fg from "fast-glob";
-import pixelmatch from "pixelmatch";
-import { PNG } from "pngjs";
+import { listPngs, copyFile, diffImage, buildComment } from "./lib/image-diff.mjs";
+import { makeGitEnv, makeGit, cloneBranch, pushBranch } from "./lib/git-ops.mjs";
+import { upsertComment } from "./lib/github-api.mjs";
 
 const {
   GITHUB_TOKEN: TOKEN,
@@ -26,195 +25,50 @@ const {
   VRT_THRESHOLD_PIXEL,
 } = process.env;
 
-const MATCH = Number.parseFloat(VRT_MATCHING_THRESHOLD || "0.05");
-const THRESH_PX = Number.parseInt(VRT_THRESHOLD_PIXEL || "50", 10);
-
-// トークンはコマンドライン引数/URLに一切載せない（ps 一覧や例外メッセージへの漏洩防止）。
-// URL には username(固定文字列)のみを埋め込み、password は GIT_ASKPASS 経由で env から渡す。
-const REMOTE_URL = `https://x-access-token@github.com/${REPO}.git`;
-const askpassDir = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-auth-"));
-const ASKPASS_PATH = path.join(askpassDir, "askpass.sh");
-fs.writeFileSync(ASKPASS_PATH, `#!/bin/sh\nprintf '%s' "$CHROMAGIC_GIT_TOKEN"\n`);
-fs.chmodSync(ASKPASS_PATH, 0o700);
-const GIT_ENV = {
-  ...process.env,
-  GIT_ASKPASS: ASKPASS_PATH,
-  CHROMAGIC_GIT_TOKEN: TOKEN,
-  GIT_TERMINAL_PROMPT: "0",
+const THRESHOLD_OPTS = {
+  matchThreshold: Number.parseFloat(VRT_MATCHING_THRESHOLD || "0.05"),
+  thresholdPixel: Number.parseInt(VRT_THRESHOLD_PIXEL || "50", 10),
 };
+
+const REMOTE_URL = `https://x-access-token@github.com/${REPO}.git`;
+const GIT_ENV = makeGitEnv(TOKEN);
+const git = makeGit(GIT_ENV);
+const log = (m) => process.stdout.write(`${m}\n`);
+const COMMENT_MARKER = "<!-- chromagic-vrt -->";
 
 const event = EVENT_PATH && fs.existsSync(EVENT_PATH)
   ? JSON.parse(fs.readFileSync(EVENT_PATH, "utf8"))
   : {};
 const DEFAULT_BRANCH = event.repository?.default_branch || "main";
 
-// execFileSync + 配列引数でシェルを介さない（ブランチ名など input 由来の値でもコマンドインジェクションしない）。
-const sh = (file, args, opts = {}) =>
-  execFileSync(file, args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", env: GIT_ENV, ...opts });
-const git = (...args) => sh("git", args);
-const log = (m) => process.stdout.write(`${m}\n`);
-const COMMENT_MARKER = "<!-- chromagic-vrt -->";
-
-function listPngs(dir) {
-  return fg.sync("**/*.png", { cwd: dir, dot: false }).sort();
-}
-function copyFile(src, dest) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.copyFileSync(src, dest);
-}
-
-/** GitHub Actions の outputs を書き出す（consumer が件数で gate できるように）。 */
 function setOutputs(o) {
   if (!process.env.GITHUB_OUTPUT) return;
-  const body = Object.entries(o)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n");
+  const body = Object.entries(o).map(([k, v]) => `${k}=${v}`).join("\n");
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `${body}\n`);
-}
-
-/** baseline ブランチを浅く clone。無ければ null。 */
-function cloneBranch(branch) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-"));
-  try {
-    git("clone", "-q", "--depth", "1", "--branch", branch, REMOTE_URL, dir);
-    return dir;
-  } catch {
-    return null;
-  }
-}
-
-/** staging ディレクトリを branch として push。force=true で履歴を捨てて置換。 */
-function pushBranch(stageDir, branch, { force, baseDir } = {}) {
-  let work = stageDir;
-  if (!force && baseDir) {
-    // 既存 report ブランチに追記
-    for (const f of fg.sync("**/*", { cwd: stageDir, dot: false, onlyFiles: true })) {
-      copyFile(path.join(stageDir, f), path.join(baseDir, f));
-    }
-    work = baseDir;
-    git("-C", work, "add", "-A");
-    try {
-      git("-C", work, "-c", "user.email=vrt@chromagic", "-c", "user.name=chromagic", "commit", "-q", "-m", `chromagic: report ${RUN_ID} [skip ci]`);
-    } catch {
-      // 変更なしで commit するものが無いケースは無視。
-    }
-    git("-C", work, "push", "-q", REMOTE_URL, `HEAD:${branch}`);
-    return;
-  }
-  git("-C", work, "init", "-q");
-  git("-C", work, "checkout", "-q", "-b", branch);
-  git("-C", work, "add", "-A");
-  git("-C", work, "-c", "user.email=vrt@chromagic", "-c", "user.name=chromagic", "commit", "-q", "-m", `chromagic: ${branch} @ ${RUN_ID} [skip ci]`);
-  git("-C", work, "push", "-q", "--force", REMOTE_URL, `HEAD:${branch}`);
-}
-
-async function apiFetch(method, urlPath, body) {
-  const res = await fetch(`${API}${urlPath}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      Accept: "application/vnd.github+json",
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${urlPath} -> ${res.status} ${await res.text()}`);
-  return res.json();
-}
-
-/** diff を生成。changed なら true。緑=追加 / 赤=削除 の2色。 */
-function diffImage(basePath, curPath, diffOut) {
-  const a = PNG.sync.read(fs.readFileSync(basePath));
-  const b = PNG.sync.read(fs.readFileSync(curPath));
-  if (a.width !== b.width || a.height !== b.height) {
-    return { changed: true, pixels: -1, sizeMismatch: true };
-  }
-  const { width, height } = a;
-  const out = new PNG({ width, height });
-  const px = pixelmatch(a.data, b.data, out.data, width, height, {
-    threshold: MATCH,
-    includeAA: false,
-    alpha: 0.35,
-    aaColor: [255, 255, 0],
-    diffColor: [255, 0, 0], // 赤 = baseline 側(消えた)
-    diffColorAlt: [0, 200, 0], // 緑 = 現行側(増えた)
-  });
-  if (px > THRESH_PX) {
-    fs.mkdirSync(path.dirname(diffOut), { recursive: true });
-    fs.writeFileSync(diffOut, PNG.sync.write(out));
-    return { changed: true, pixels: px };
-  }
-  return { changed: false, pixels: px };
-}
-
-function rawUrl(kind, rel) {
-  const enc = rel.split("/").map(encodeURIComponent).join("/");
-  return `${SERVER}/${REPO}/blob/${REPORT_BRANCH}/${RUN_ID}/${kind}/${enc}?raw=true`;
-}
-
-function buildComment({ changed, added, removed, total }) {
-  const lines = [COMMENT_MARKER];
-  const ok = changed.length === 0 && added.length === 0 && removed.length === 0;
-  lines.push("## 🎨 chromagic — Visual Regression");
-  lines.push("");
-  lines.push(ok ? "✅ 視覚的差分なし。" : "🟠 差分を検出しました（🟢=増えた / 🔴=消えたピクセル）。");
-  lines.push("");
-  lines.push("| pass | changed | new | deleted |");
-  lines.push("|:--:|:--:|:--:|:--:|");
-  lines.push(`| ${total - changed.length - added.length} | ${changed.length} | ${added.length} | ${removed.length} |`);
-  lines.push("");
-  for (const c of changed) {
-    lines.push(`### \`${c.rel}\`${c.sizeMismatch ? " (サイズ変更)" : ""}`);
-    lines.push("| expected | actual | difference |");
-    lines.push("|--|--|--|");
-    const diffCell = c.sizeMismatch ? "—" : `![diff](${rawUrl("diff", c.rel)})`;
-    lines.push(`| ![expected](${rawUrl("expected", c.rel)}) | ![actual](${rawUrl("actual", c.rel)}) | ${diffCell} |`);
-    lines.push("");
-  }
-  if (added.length) {
-    lines.push("<details><summary>🆕 new stories</summary>\n");
-    for (const rel of added) lines.push(`- \`${rel}\` ![new](${rawUrl("actual", rel)})`);
-    lines.push("\n</details>");
-  }
-  lines.push("");
-  lines.push(`<sub>baseline: \`${BASELINE_BRANCH}\` ／ images: \`${REPORT_BRANCH}/${RUN_ID}\` ／ run ${RUN_ID}</sub>`);
-  return lines.join("\n");
-}
-
-async function upsertComment(prNumber, body) {
-  const comments = await apiFetch("GET", `/repos/${REPO}/issues/${prNumber}/comments?per_page=100`);
-  const existing = comments.find((c) => c.body?.includes(COMMENT_MARKER));
-  if (existing) {
-    await apiFetch("PATCH", `/repos/${REPO}/issues/comments/${existing.id}`, { body });
-  } else {
-    await apiFetch("POST", `/repos/${REPO}/issues/${prNumber}/comments`, { body });
-  }
 }
 
 async function main() {
   const currentPngs = listPngs(CURRENT);
   log(`chromagic: ${currentPngs.length} screenshots captured.`);
 
-  // --- デフォルトブランチへの push: baseline を更新して終了 ---
   const isDefaultPush =
     EVENT === "push" && (event.ref === `refs/heads/${DEFAULT_BRANCH}` || process.env.GITHUB_REF === `refs/heads/${DEFAULT_BRANCH}`);
   if (isDefaultPush) {
     const stage = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-base-"));
     for (const rel of currentPngs) copyFile(path.join(CURRENT, rel), path.join(stage, rel));
-    pushBranch(stage, BASELINE_BRANCH, { force: true });
+    pushBranch(stage, BASELINE_BRANCH, { force: true, remoteUrl: REMOTE_URL, git, commitMessage: `chromagic: ${BASELINE_BRANCH} @ ${RUN_ID} [skip ci]` });
     log(`chromagic: baseline '${BASELINE_BRANCH}' updated (${currentPngs.length} images).`);
     setOutputs({ changed: 0, new: 0, deleted: 0, pass: currentPngs.length, total: currentPngs.length, baseline: "updated" });
     return;
   }
 
-  // --- PR: baseline と比較 ---
   const prNumber = event.pull_request?.number || event.number;
   if (!prNumber) {
     log("chromagic: PR でも default push でもないためスキップ。");
     return;
   }
 
-  const baseDir = cloneBranch(BASELINE_BRANCH);
+  const baseDir = cloneBranch(REMOTE_URL, BASELINE_BRANCH, git);
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-report-"));
   const changed = [];
   const added = [];
@@ -228,7 +82,7 @@ async function main() {
       continue;
     }
     const diffOut = path.join(stage, RUN_ID, "diff", rel);
-    const r = diffImage(base, cur, diffOut);
+    const r = diffImage(base, cur, diffOut, THRESHOLD_OPTS);
     if (r.changed) {
       changed.push({ rel, ...r });
       copyFile(cur, path.join(stage, RUN_ID, "actual", rel));
@@ -248,21 +102,26 @@ async function main() {
     total: currentPngs.length,
   });
 
-  // 変化があれば画像を report ブランチへ push
   if (changed.length || added.length) {
-    const reportBase = cloneBranch(REPORT_BRANCH);
-    pushBranch(stage, REPORT_BRANCH, { force: !reportBase, baseDir: reportBase || undefined });
+    const reportBase = cloneBranch(REMOTE_URL, REPORT_BRANCH, git);
+    pushBranch(stage, REPORT_BRANCH, {
+      force: !reportBase, baseDir: reportBase || undefined, remoteUrl: REMOTE_URL, git,
+      commitMessage: `chromagic: report ${RUN_ID} [skip ci]`,
+    });
     log(`chromagic: report images pushed to '${REPORT_BRANCH}/${RUN_ID}'.`);
   }
 
-  const body = buildComment({ changed, added, removed, total: currentPngs.length });
-  await upsertComment(prNumber, body);
+  const body = buildComment({
+    marker: COMMENT_MARKER,
+    title: "🎨 chromagic — Visual Regression",
+    changed, added, removed, total: currentPngs.length,
+    urlCtx: { server: SERVER, repo: REPO, reportBranch: REPORT_BRANCH, runId: RUN_ID, baselineBranch: BASELINE_BRANCH },
+  });
+  await upsertComment({ prNumber, body, marker: COMMENT_MARKER, token: TOKEN, apiBase: API, repo: REPO });
   log(`chromagic: PR #${prNumber} にコメントしました。`);
 }
 
 main().catch((e) => {
-  // 多層防御: GIT_ASKPASS 化でトークンはコマンドライン/URLに乗らない設計だが、
-  // 万一 stack/message にトークン文字列が紛れても出力前に必ずマスクする。
   let msg = e.stack || String(e);
   if (TOKEN) msg = msg.split(TOKEN).join("***");
   process.stderr.write(`chromagic failed: ${msg}\n`);

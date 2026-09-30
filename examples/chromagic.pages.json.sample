@@ -1,0 +1,6 @@
+{
+  "pages": [
+    { "path": "/login", "name": "login" },
+    { "path": "/dashboard", "name": "dashboard" }
+  ]
+}

@@ -1,0 +1,30 @@
+# .github/workflows/vrt-pages.yaml
+name: Page VRT
+
+on:
+  pull_request:
+  push: { branches: [main] } # ← ベースライン更新に必須
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  vrt-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - uses: sgash708/chromagic@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          storybook: "false" # 実ページVRTのみ使う場合はStorybook VRT(storycap)をスキップする
+          pages-start-command: "bun run start"
+          pages-base-url: "http://localhost:3000"
+          pages-config: "chromagic.pages.json"
+          pages-login-script: ".github/chromagic/login.mjs"
+        env:
+          CHROMAGIC_LOGIN_ID: ${{ secrets.CHROMAGIC_LOGIN_ID }}
+          CHROMAGIC_LOGIN_PASSWORD: ${{ secrets.CHROMAGIC_LOGIN_PASSWORD }}

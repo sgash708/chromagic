@@ -84,6 +84,18 @@ Ready-to-copy workflows for `.github/workflows/vrt.yaml`:
 | `baseline-branch` | `vrt-baseline` | Branch holding the baseline images |
 | `report-branch` | `vrt-reports` | Branch hosting the images referenced by PR comments |
 | `install-fonts` | `true` | Install Noto CJK (prevents tofu for CJK text on Linux) |
+| `pages-config` | `chromagic.pages.json` | Config file listing the URLs for page VRT. Page VRT is skipped if it's absent |
+| `pages-start-command` | (empty) | Command to start the app for page VRT. Skipped if not set |
+| `pages-base-url` | `http://localhost:3000` | Base URL for the started app |
+| `pages-login-script` | (empty) | Path to a Playwright login script |
+| `pages-health-check-timeout` | `30` | Timeout in seconds while waiting for the app to start |
+| `pages-baseline-branch` | `vrt-baseline-pages` | Baseline branch for page VRT |
+| `pages-report-branch` | `vrt-reports-pages` | Report branch for page VRT |
+| `pages-viewport` | (empty, inherits `viewport`) | Viewport for page VRT |
+| `pages-check-name` | `chromagic/pages-approval` | Check run name used for the approval gate |
+| `pages-allow-self-approve` | `false` | Set to `true` to let the PR author approve their own `/chromagic approve` (write permission is still required). For solo development with no other reviewer |
+| `mode` | `capture` | `capture` or `approve` |
+| `storybook` | `true` | Run Storybook VRT (storycap capture + compare). Set to `false` for page-VRT-only consumers with no `storybook-static/` build |
 
 ## Outputs
 
@@ -105,6 +117,26 @@ Counts usable in later steps (e.g. fail the job when there are diffs).
 - if: ${{ steps.vrt.outputs.changed != '0' }}
   run: echo "::warning::${{ steps.vrt.outputs.changed }} visual diff(s) found"
 ```
+
+## Page VRT (optional)
+
+Beyond Storybook stories, chromagic can also catch visual regressions on the actual deployed screens.
+
+- Starts the app with the consumer-supplied start command (`pages-start-command`) and captures the URLs listed in `chromagic.pages.json`
+- For screens that need login, captures storage state first via a consumer-supplied Playwright login script (`pages-login-script`)
+- Baselines/reports are kept on separate branches from Storybook (`vrt-baseline-pages` / `vrt-reports-pages`)
+- A PR with diffs gets a failing `chromagic/pages-approval` check, and branch protection can block the merge until **someone other than the PR author** comments `/chromagic approve` (and has write access to the repo)
+- See [`examples/vrt-pages.yaml`](examples/vrt-pages.yaml) and [`examples/vrt-pages-approve.yaml`](examples/vrt-pages-approve.yaml) for usage
+
+If neither `pages-start-command` nor `pages-config` is set, page VRT doesn't run and only the existing Storybook VRT behavior applies. If you only want page VRT and have no Storybook build, set `storybook: "false"` to skip the storycap capture/compare steps entirely (otherwise storycap fails when `storybook-static/` doesn't exist).
+
+### Security note
+
+The approval gate protects against unreviewed **visual** changes slipping through — it is not a sandbox against a malicious PR's own code.
+
+- For same-repository PRs, GitHub Actions grants the PR's own workflow the same `GITHUB_TOKEN` (with `checks: write`) that chromagic uses. A modified workflow file, a modified `chromagic.pages.json`, or a modified login script could in principle write a `success` check run directly, bypassing the approval flow — this is a general property of any `pull_request`-triggered Actions gate, not something chromagic's code can prevent.
+- If you want the approval gate to be meaningful against an adversarial contributor (not just against innocent mistakes), protect your workflow files, `chromagic.pages.json`, and any login script with CODEOWNERS + required reviews (branch protection).
+- You must configure branch protection to require the `chromagic/pages-approval` check (or whatever you set `pages-check-name` to) — chromagic cannot enforce that from the action side.
 
 ## How it works
 

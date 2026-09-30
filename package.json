@@ -10,10 +10,14 @@
     "type": "git",
     "url": "https://github.com/sgash708/chromagic.git"
   },
+  "scripts": {
+    "test": "node --test src/lib/*.test.mjs"
+  },
   "dependencies": {
     "fast-glob": "^3.3.2",
     "http-server": "^14.1.1",
     "pixelmatch": "^7.2.0",
+    "playwright-core": "^1.49.0",
     "pngjs": "^7.0.0",
     "storycap": "^5.0.1"
   },
