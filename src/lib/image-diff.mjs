@@ -13,15 +13,24 @@ export function copyFile(src, dest) {
   fs.copyFileSync(src, dest);
 }
 
+function padToSize(img, width, height) {
+  if (img.width === width && img.height === height) return img;
+  const out = new PNG({ width, height });
+  out.data.fill(255);
+  PNG.bitblt(img, out, 0, 0, img.width, img.height, 0, 0);
+  return out;
+}
+
 export function diffImage(basePath, curPath, diffOut, { matchThreshold, thresholdPixel }) {
   const a = PNG.sync.read(fs.readFileSync(basePath));
   const b = PNG.sync.read(fs.readFileSync(curPath));
-  if (a.width !== b.width || a.height !== b.height) {
-    return { changed: true, pixels: -1, sizeMismatch: true };
-  }
-  const { width, height } = a;
+  const sizeMismatch = a.width !== b.width || a.height !== b.height;
+  const width = Math.max(a.width, b.width);
+  const height = Math.max(a.height, b.height);
+  const aPadded = padToSize(a, width, height);
+  const bPadded = padToSize(b, width, height);
   const out = new PNG({ width, height });
-  const px = pixelmatch(a.data, b.data, out.data, width, height, {
+  const px = pixelmatch(aPadded.data, bPadded.data, out.data, width, height, {
     threshold: matchThreshold,
     includeAA: false,
     alpha: 0.35,
@@ -29,10 +38,10 @@ export function diffImage(basePath, curPath, diffOut, { matchThreshold, threshol
     diffColor: [255, 0, 0],
     diffColorAlt: [0, 200, 0],
   });
-  if (px > thresholdPixel) {
+  if (sizeMismatch || px > thresholdPixel) {
     fs.mkdirSync(path.dirname(diffOut), { recursive: true });
     fs.writeFileSync(diffOut, PNG.sync.write(out));
-    return { changed: true, pixels: px };
+    return sizeMismatch ? { changed: true, pixels: px, sizeMismatch: true } : { changed: true, pixels: px };
   }
   return { changed: false, pixels: px };
 }
@@ -57,7 +66,7 @@ export function buildComment({ marker, title, changed, added, removed, total, ur
     lines.push(`### \`${c.rel}\`${c.sizeMismatch ? " (サイズ変更)" : ""}`);
     lines.push("| expected | actual | difference |");
     lines.push("|--|--|--|");
-    const diffCell = c.sizeMismatch ? "—" : `![diff](${rawUrl({ ...urlCtx, kind: "diff", rel: c.rel })})`;
+    const diffCell = `![diff](${rawUrl({ ...urlCtx, kind: "diff", rel: c.rel })})`;
     lines.push(`| ![expected](${rawUrl({ ...urlCtx, kind: "expected", rel: c.rel })}) | ![actual](${rawUrl({ ...urlCtx, kind: "actual", rel: c.rel })}) | ${diffCell} |`);
     lines.push("");
   }

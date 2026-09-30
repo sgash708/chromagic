@@ -49,15 +49,35 @@ test("diffImage returns changed=true and writes diff when pixels differ beyond t
   assert.equal(fs.existsSync(diffOut), true);
 });
 
-test("diffImage detects size mismatch without throwing", () => {
+test("diffImage pads the smaller image and still writes a diff on size mismatch", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-test-"));
   const base = path.join(dir, "base.png");
   const cur = path.join(dir, "cur.png");
   writeSolidPng(base, { width: 4, height: 4, color: [0, 0, 0] });
   writeSolidPng(cur, { width: 8, height: 8, color: [0, 0, 0] });
-  const r = diffImage(base, cur, path.join(dir, "diff.png"), { matchThreshold: 0.05, thresholdPixel: 50 });
+  const diffOut = path.join(dir, "diff.png");
+  const r = diffImage(base, cur, diffOut, { matchThreshold: 0.05, thresholdPixel: 50 });
   assert.equal(r.changed, true);
   assert.equal(r.sizeMismatch, true);
+  assert.equal(fs.existsSync(diffOut), true);
+  const out = PNG.sync.read(fs.readFileSync(diffOut));
+  assert.equal(out.width, 8);
+  assert.equal(out.height, 8);
+});
+
+test("diffImage highlights newly added content in the grown region, not just blank padding", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chromagic-test-"));
+  const base = path.join(dir, "base.png");
+  const cur = path.join(dir, "cur.png");
+  writeSolidPng(base, { width: 4, height: 4, color: [255, 255, 255] });
+  // cur is taller and its added rows are non-white (simulating new content), not blank padding.
+  writeSolidPng(cur, { width: 4, height: 8, color: [0, 128, 0] });
+  const diffOut = path.join(dir, "diff.png");
+  const r = diffImage(base, cur, diffOut, { matchThreshold: 0.05, thresholdPixel: 0 });
+  assert.equal(r.changed, true);
+  assert.equal(r.sizeMismatch, true);
+  assert.ok(r.pixels > 0);
+  assert.equal(fs.existsSync(diffOut), true);
 });
 
 test("rawUrl encodes path segments", () => {
