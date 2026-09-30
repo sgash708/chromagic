@@ -93,6 +93,7 @@ jobs:
 | `pages-report-branch` | `vrt-reports-pages` | 実ページ用レポートブランチ |
 | `pages-viewport` | (空、`viewport`を継承) | 実ページVRTのビューポート |
 | `pages-check-name` | `chromagic/pages-approval` | 承認ゲートに使うcheck run名 |
+| `pages-allow-self-approve` | `false` | `true`にするとPR作成者自身の `/chromagic approve` でも承認できる(write権限チェックは引き続き必須)。レビュアーが他にいないソロ開発向け |
 | `mode` | `capture` | `capture`または`approve` |
 | `storybook` | `true` | Storybook VRT(storycap撮影+比較)を実行する。`storybook-static/`のビルドが無く実ページVRTのみ使いたい場合は`false`にする |
 

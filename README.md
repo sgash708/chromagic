@@ -93,6 +93,7 @@ Ready-to-copy workflows for `.github/workflows/vrt.yaml`:
 | `pages-report-branch` | `vrt-reports-pages` | Report branch for page VRT |
 | `pages-viewport` | (empty, inherits `viewport`) | Viewport for page VRT |
 | `pages-check-name` | `chromagic/pages-approval` | Check run name used for the approval gate |
+| `pages-allow-self-approve` | `false` | Set to `true` to let the PR author approve their own `/chromagic approve` (write permission is still required). For solo development with no other reviewer |
 | `mode` | `capture` | `capture` or `approve` |
 | `storybook` | `true` | Run Storybook VRT (storycap capture + compare). Set to `false` for page-VRT-only consumers with no `storybook-static/` build |
 

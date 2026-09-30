@@ -1,5 +1,5 @@
 // chromagic — 実ページVRTの承認コメント処理。
-// issue_comment イベントで "/chromagic approve" を検知し、PR作成者本人でないこと・
+// issue_comment イベントで "/chromagic approve" を検知し、PR作成者本人でないこと(PAGES_ALLOW_SELF_APPROVEで無効化可)・
 // write権限を持つこと・対象commitに未解決の差分検出check(failure)が存在することを確認した上で
 // PAGES_CHECK_NAME の check run を success に更新する。
 import fs from "node:fs";
@@ -12,6 +12,7 @@ const {
   GITHUB_EVENT_PATH: EVENT_PATH,
   GITHUB_API_URL: API = "https://api.github.com",
   PAGES_CHECK_NAME,
+  PAGES_ALLOW_SELF_APPROVE,
 } = process.env;
 
 const log = (m) => process.stdout.write(`${m}\n`);
@@ -36,7 +37,8 @@ async function main() {
   const prAuthor = event.issue.user.login;
   const prNumber = event.issue.number;
 
-  if (isSelfApprove(commentAuthor, prAuthor)) {
+  const allowSelfApprove = PAGES_ALLOW_SELF_APPROVE === "true";
+  if (!allowSelfApprove && isSelfApprove(commentAuthor, prAuthor)) {
     log(`chromagic: @${commentAuthor} はPR作成者本人のため承認できません。`);
     await postRejectionComment(
       prNumber,
