@@ -13,7 +13,7 @@
   "dependencies": {
     "fast-glob": "^3.3.2",
     "http-server": "^14.1.1",
-    "pixelmatch": "^7.2.0",
+    "pixelmatch": "^8.0.0",
     "pngjs": "^7.0.0",
     "storycap": "^5.0.1"
   },
